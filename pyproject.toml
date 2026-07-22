@@ -1,0 +1,19 @@
+[project]
+name = "gswatch"
+version = "0.1.0"
+description = "Сторож свободных слотов на подачу документов на загранпаспорт (ЕПГУ)"
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.49",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+gswatch = "gswatch.main:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gswatch"]

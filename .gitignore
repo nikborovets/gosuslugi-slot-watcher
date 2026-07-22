@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+artifacts/
+third_party_scripts/
+storage_state.json
+.env
+
+# Справочник отделений, выгруженный из ответа портала. Нужен локально для
+# читаемых подписей в логе, но в репозиторий не публикуется.
+offices_moscow.json
