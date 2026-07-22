@@ -34,12 +34,26 @@ log = logging.getLogger(__name__)
 # Имена заголовков приходят из constants.py: их навешивает интерцептор портала.
 _FETCH_JS = """
 async ({ url, body, headers }) => {
-  const r = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: headers,
-    body: JSON.stringify(body),
-  });
+  let r;
+  try {
+    r = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: headers,
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    // "Failed to fetch" значит, что запрос не ушёл вообще: разрыв сети,
+    // уход страницы в навигацию, блокировка. HTTP-кода тут нет и быть не
+    // может, поэтому возвращаем 0 и обстановку — по ней причина различима.
+    return {
+      status: 0,
+      payload: null,
+      error: String(e && e.message || e),
+      href: location.href,
+      online: navigator.onLine,
+    };
+  }
   let payload = null;
   try { payload = await r.json(); } catch (e) { payload = null; }
   return { status: r.status, payload };
@@ -49,6 +63,10 @@ async ({ url, body, headers }) => {
 
 class SessionLost(Exception):
     """Портал ответил 401/403 — сессия протухла, нужен ручной вход."""
+
+
+class RequestNotSent(Exception):
+    """Запрос не покинул браузер: сеть, навигация или блокировка."""
 
 
 @dataclass
@@ -92,12 +110,30 @@ class Watcher:
         self._restore_state()
         return self
 
-    def __exit__(self, *exc: object) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, *_: object) -> None:
+        """Свернуться, что бы ни случилось.
+
+        Ctrl+C в терминале уходит всей группе процессов, то есть и самому
+        Chrome. Пока Python добирается сюда, браузера может уже не быть, и
+        тогда обращение к нему бросает — причём прямо во время разматывания
+        стека, подменяя собой исходный KeyboardInterrupt. Ронять на этом выход
+        нельзя: цикл сохраняет куки в конце каждой итерации, терять нечего, а
+        traceback вместо «остановлено» пугает на ровном месте.
+        """
         if self._ctx is not None:
-            self.save_state()
-            self._ctx.close()
+            # На Ctrl+C не пытаемся: куки уже сохранены прошлым циклом, а
+            # попытка лишь добавит тревожное предупреждение о мёртвом браузере.
+            if exc_type is not KeyboardInterrupt:
+                self.save_state()
+            try:
+                self._ctx.close()
+            except Exception as exc:  # noqa: BLE001 — браузера могло уже не быть
+                log.debug("Chrome закрылся сам: %s", exc)
         if self._pw is not None:
-            self._pw.stop()
+            try:
+                self._pw.stop()
+            except Exception as exc:  # noqa: BLE001 — то же самое
+                log.debug("Playwright уже остановлен: %s", exc)
 
     @property
     def _state_path(self):
@@ -190,6 +226,17 @@ class Watcher:
             },
         )
         status = int(result["status"])
+        if status == 0:
+            expected = self.cfg.booking_page
+            actual = result.get("href", "")
+            # Страница могла уйти в навигацию: сравниваем без query-строки,
+            # Angular любит дописывать и убирать параметры на ходу.
+            moved = actual.split("?")[0] != expected.split("?")[0]
+            raise RequestNotSent(
+                f"{result.get('error', 'запрос не ушёл')}; "
+                f"сеть по мнению браузера {'есть' if result.get('online') else 'ПРОПАЛА'}"
+                + (f"; страница уехала на {actual}" if moved else "")
+            )
         if status in (401, 403):
             raise SessionLost(f"HTTP {status} от /equeue/agg/slots")
         return SlotsResponse(status=status, payload=result["payload"])
