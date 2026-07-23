@@ -13,7 +13,14 @@ from pathlib import Path
 
 from .alerts import Alert, Slot, build_sinks, dispatch
 from .browser import SessionLost, Watcher
-from .config import Config, ConfigError, Office, load_config
+from .config import (
+    Config,
+    ConfigError,
+    Office,
+    load_config,
+    parse_office_directory,
+    save_office_reference,
+)
 from .constants import (
     LOG_FILE_BACKUPS,
     LOG_FILE_MAX_BYTES,
@@ -199,16 +206,43 @@ def run(cfg: Config | None = None, sinks: list | None = None) -> None:
             time.sleep(delay)
 
 
+def refresh_offices(cfg: Config | None = None) -> None:
+    """Обновить offices_moscow.json из ответа /api/service/booking.
+
+    Ручная операция: открывает окно, ждёт входа, делает один запрос,
+    перезаписывает справочник. Нужна редко — адреса отделений меняются годами.
+    Отдельная команда, а не автозапуск: за справочником тянется весь
+    персональный сценарий заявки, и делать это на каждом старте незачем.
+    """
+    cfg = cfg or load_config()
+    attach_file_log(cfg.log_file)
+    with Watcher(cfg) as watcher:
+        watcher.open_booking_page()
+        watcher.wait_for_login()
+        log.info("запрашиваю справочник отделений…")
+        scenario = watcher.fetch_booking_scenario()
+        directory = parse_office_directory(scenario)
+        path = save_office_reference(directory)
+        log.info("справочник обновлён: %d отделений → %s", len(directory), path)
+
+
 def cli() -> None:
     parser = argparse.ArgumentParser(
         prog="gswatch",
         description="Сторож свободных слотов на подачу на загранпаспорт (ЕПГУ).",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--selftest",
         action="store_true",
         help="прогнать все уведомления на подставных данных, "
         "не обращаясь к Госуслугам: SMS и Telegram уйдут по-настоящему",
+    )
+    mode.add_argument(
+        "--refresh-offices",
+        action="store_true",
+        help="обновить offices_moscow.json из Госуслуг и выйти "
+        "(нужен вход в открывшемся окне)",
     )
     args = parser.parse_args()
 
@@ -223,6 +257,8 @@ def cli() -> None:
             cfg = load_config()
             attach_file_log(cfg.log_file)
             run_selftest(cfg, build_sinks(cfg))
+        elif args.refresh_offices:
+            refresh_offices()
         else:
             run()
     except ConfigError as exc:

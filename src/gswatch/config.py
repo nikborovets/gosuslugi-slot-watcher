@@ -14,12 +14,18 @@ from pathlib import Path
 from dotenv import dotenv_values
 
 from .constants import (
+    ATTR_ADDRESS,
+    ATTR_CODE_FRGU,
+    ATTR_SLOTPERCENT,
+    BOOKING_DEPARTMENT_ID,
+    BOOKING_DEPARTMENT_TITLE,
     BOOKING_PAGE_TEMPLATE,
     ESERVICE_ID,
     FORM_ID,
     LOG_FILE_DEFAULT,
     MAC_SOUNDS_DIR,
     MESSAGES_SERVICES,
+    OFFICE_DICTIONARY_KEY,
     PASSPORT_TYPE_LABELS,
     SERVICE_IDS,
 )
@@ -158,6 +164,55 @@ def load_office_reference() -> dict[str, str]:
     return reference
 
 
+def parse_office_directory(booking_response: dict) -> list[dict]:
+    """Достать плоский справочник отделений из ответа /api/service/booking.
+
+    Путь проверен по HAR: applicantAnswers → OFFICE_DICTIONARY_KEY → value
+    (это JSON-строка) → response.items. Каждый элемент несёт атрибуты в списке
+    attributes, значение берём из asString. Раскладываем в тот же плоский вид,
+    что читает load_office_reference: dictValue, codeFrgu, title, address,
+    slotPercentAtCapture.
+
+    Бросает ValueError, если структура не та (портал сменил формат) — вызывающий
+    решает, что делать; молча писать пустой справочник нельзя.
+    """
+    try:
+        answers = booking_response["scenarioDto"]["applicantAnswers"]
+        raw = answers[OFFICE_DICTIONARY_KEY]["value"]
+        items = json.loads(raw)["response"]["items"]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"не нашёл справочник в ответе booking: {exc}") from exc
+
+    directory: list[dict] = []
+    for item in items:
+        attrs = {
+            a["name"]: (a.get("value") or {}).get("asString", "").strip()
+            for a in item.get("attributes", [])
+        }
+        directory.append(
+            {
+                "dictValue": item.get("value", "").strip(),
+                "codeFrgu": attrs.get(ATTR_CODE_FRGU, ""),
+                "title": item.get("title", "").strip(),
+                "address": attrs.get(ATTR_ADDRESS, ""),
+                "slotPercentAtCapture": attrs.get(ATTR_SLOTPERCENT, ""),
+            }
+        )
+    if not directory:
+        raise ValueError("справочник в ответе booking оказался пустым")
+    return directory
+
+
+def save_office_reference(directory: list[dict]) -> Path:
+    """Записать справочник в offices_moscow.json (атомарно). Вернуть путь."""
+    tmp = OFFICES_REFERENCE.with_name(OFFICES_REFERENCE.name + ".tmp")
+    tmp.write_text(
+        json.dumps(directory, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    tmp.replace(OFFICES_REFERENCE)
+    return OFFICES_REFERENCE
+
+
 def _split_codes(raw: str) -> list[str]:
     """"123, 456" → ["123", "456"]."""
     return [chunk.strip() for chunk in raw.replace("\n", ",").split(",") if chunk.strip()]
@@ -245,6 +300,30 @@ class Config:
             "eserviceId": ESERVICE_ID,
             "attributes": [],
             "filter": None,
+        }
+
+    def booking_payload(self) -> dict:
+        """Тело POST /api/service/booking — за ним приходит справочник отделений.
+
+        Форма минимальная: только то, что нужно серверу, чтобы вернуть сценарий.
+        Полное тело из HAR несёт клиентский мусор (userAgent, "error":"Region
+        not found") — он тут ни к чему. eserviceId здесь ESERVICE_ID, а не
+        service_id услуги: booking адресуется услуге записи, а не типу паспорта.
+        """
+        return {
+            "parentOrderId": int(self.order_id),
+            "serviceId": ESERVICE_ID,
+            "owner": "SF",
+            "serviceInfo": {
+                "department": {
+                    "id": BOOKING_DEPARTMENT_ID,
+                    "title": BOOKING_DEPARTMENT_TITLE,
+                },
+                "orderType": "ORDER",
+                "queryParams": {"parentOrderId": self.order_id},
+                "formId": "booking",
+                "deviceType": "desk",
+            },
         }
 
 

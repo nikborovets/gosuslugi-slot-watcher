@@ -17,6 +17,7 @@ from playwright.sync_api import Page, TimeoutError as PWTimeout, sync_playwright
 
 from .config import Config, Office
 from .constants import (
+    BOOKING_URL,
     CHECK_SESSION_URL,
     CHROME_ARGS,
     CHROME_CHANNEL,
@@ -240,3 +241,30 @@ class Watcher:
         if status in (401, 403):
             raise SessionLost(f"HTTP {status} от /equeue/agg/slots")
         return SlotsResponse(status=status, payload=result["payload"])
+
+    def fetch_booking_scenario(self) -> dict:
+        """POST /api/service/booking — вернуть сценарий записи целиком.
+
+        Внутри него лежит справочник всех отделений региона; его вытаскивает
+        parse_office_directory. Ответ большой и несёт персональные данные, но
+        мы его только передаём наверх и нигде не сохраняем.
+        """
+        result = self.page.evaluate(
+            _FETCH_JS,
+            {
+                "url": BOOKING_URL,
+                "body": self.cfg.booking_payload(),
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/plain, */*",
+                },
+            },
+        )
+        status = int(result["status"])
+        if status == 0:
+            raise RequestNotSent(result.get("error", "запрос booking не ушёл"))
+        if status in (401, 403):
+            raise SessionLost(f"HTTP {status} от /service/booking")
+        if status != 200 or not result["payload"]:
+            raise RuntimeError(f"booking ответил HTTP {status} без данных")
+        return result["payload"]

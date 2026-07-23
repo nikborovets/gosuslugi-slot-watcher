@@ -29,10 +29,21 @@ CHECK_SESSION_URL = f"{BASE_URL}/auth-provider/check-session"
 # чтобы нести подлинные куки, заголовки и TLS-отпечаток браузера.
 BOOKING_PAGE_TEMPLATE = f"{BASE_URL}/{{form_id}}/booking?parentOrderId={{order_id}}"
 
-# Справочник отделений МВД (109 шт. по Москве). Пока не используется —
-# заготовка для обновления SLOTPERCENT одним запросом.
-DICTIONARY_URL = f"{BASE_URL}/api/nsi/v1/dictionary"
-DICTIONARY_TYPE = "getAppointment2_mvdr01"
+# POST сюда отдаёт сценарий записи, а внутри него — справочник всех отделений
+# региона (comp_aggregation_dictionary_new). Отсюда команда --refresh-offices
+# берёт свежий offices_moscow.json. Тело запроса — booking_payload() в config.py.
+BOOKING_URL = f"{BASE_URL}/api/service/booking"
+
+# Ведомство для тела booking: МВД. Постоянно для сценария загранпаспорта.
+BOOKING_DEPARTMENT_ID = "10000001197"
+BOOKING_DEPARTMENT_TITLE = "Министерство внутренних дел Российской Федерации"
+
+# Где в ответе booking лежит справочник и как называются атрибуты отделения.
+# Проверено по HAR: значение атрибута берём из поля asString.
+OFFICE_DICTIONARY_KEY = "comp_aggregation_dictionary_new"
+ATTR_CODE_FRGU = "CODE_FRGU"
+ATTR_ADDRESS = "address_out"
+ATTR_SLOTPERCENT = "SLOTPERCENT"
 
 
 # ─── Заголовки ────────────────────────────────────────────────────────────────
