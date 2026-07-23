@@ -17,6 +17,7 @@ from .constants import (
     BOOKING_PAGE_TEMPLATE,
     ESERVICE_ID,
     FORM_ID,
+    LOG_FILE_DEFAULT,
     MAC_SOUNDS_DIR,
     MESSAGES_SERVICES,
     PASSPORT_TYPE_LABELS,
@@ -193,6 +194,9 @@ class Config:
     # Профиль Chrome с сессией ЕПГУ. Вне репозитория: там куки от аккаунта.
     profile_dir: Path = field(default_factory=lambda: Path("~/.gswatch/chrome-profile"))
 
+    # Файл лога. None — писать только в консоль (GSWATCH_LOG_FILE= пустой).
+    log_file: Path | None = None
+
     # Какие каналы включены. Параметры каждого — ниже.
     channels: AlertChannels = field(default_factory=AlertChannels)
 
@@ -267,6 +271,10 @@ def load_config(env_file: Path | None = None) -> Config:
         """
         raw = values.get(key)
         return default if raw is None else raw.strip()
+
+    # Пустой GSWATCH_LOG_FILE — осознанный отказ от файла, а не «взять дефолт».
+    log_file_raw = get_optional("GSWATCH_LOG_FILE", LOG_FILE_DEFAULT)
+    log_file = Path(log_file_raw).expanduser() if log_file_raw else None
 
     order_id = get("GSWATCH_ORDER_ID")
     if not order_id.isdigit():
@@ -421,6 +429,7 @@ def load_config(env_file: Path | None = None) -> Config:
         profile_dir=Path(
             get("GSWATCH_PROFILE_DIR", "~/.gswatch/chrome-profile")
         ).expanduser(),
+        log_file=log_file,
         channels=channels,
         mac_alerts=mac_alerts,
         messages_to=messages_to,

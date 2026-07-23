@@ -4,17 +4,66 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import random
 import sys
 import time
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from .alerts import Alert, Slot, build_sinks, dispatch
 from .browser import SessionLost, Watcher
 from .config import Config, ConfigError, Office, load_config
-from .constants import MIN_DELAY_SEC, SLOT_ID_KEY, SLOT_TIME_KEY
+from .constants import (
+    LOG_FILE_BACKUPS,
+    LOG_FILE_MAX_BYTES,
+    MIN_DELAY_SEC,
+    SLOT_ID_KEY,
+    SLOT_TIME_KEY,
+)
 from .selftest import run_selftest
 
 log = logging.getLogger("gswatch")
+
+
+def attach_file_log(log_file: Path | None) -> None:
+    """Подключить запись лога в файл с ротацией, если путь задан.
+
+    Файл получает права 600, а его каталог 700: в лог попадают номер заявки
+    (в адресе страницы записи) и названия отделений — те самые данные, что мы
+    прячем в остальных местах. Формат с полной датой, в отличие от консольного:
+    файл живёт сутками, и время без даты в нём бесполезно.
+
+    Ошибку открытия глотаем с предупреждением: не писать в файл — не повод не
+    работать, консоль остаётся.
+    """
+    if log_file is None:
+        return
+    try:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        os.chmod(log_file.parent, 0o700)
+        # Создаём файл заранее с правами 600, до того как в него что-то уйдёт:
+        # RotatingFileHandler открыл бы его с 0644 — читаемым другими.
+        if not log_file.exists():
+            os.close(os.open(log_file, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600))
+        else:
+            os.chmod(log_file, 0o600)
+        handler = RotatingFileHandler(
+            log_file,
+            maxBytes=LOG_FILE_MAX_BYTES,
+            backupCount=LOG_FILE_BACKUPS,
+            encoding="utf-8",
+        )
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)-7s %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
+        logging.getLogger().addHandler(handler)
+        log.info("лог пишется в %s", log_file)
+    except OSError as exc:
+        log.warning("не удалось открыть лог-файл %s: %s — пишу только в консоль", log_file, exc)
 
 
 def started_alert(cfg: Config) -> Alert:
@@ -123,6 +172,7 @@ class SlotMonitor:
 
 def run(cfg: Config | None = None, sinks: list | None = None) -> None:
     cfg = cfg or load_config()
+    attach_file_log(cfg.log_file)
     sinks = sinks if sinks is not None else build_sinks(cfg)
     monitor = SlotMonitor(cfg, sinks)
 
@@ -171,6 +221,7 @@ def cli() -> None:
     try:
         if args.selftest:
             cfg = load_config()
+            attach_file_log(cfg.log_file)
             run_selftest(cfg, build_sinks(cfg))
         else:
             run()
