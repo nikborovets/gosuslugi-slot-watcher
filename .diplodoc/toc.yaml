@@ -1,0 +1,18 @@
+title: gswatch
+href: index.md
+items:
+  - name: Быстрый старт
+    href: index.md
+  - name: Документация
+    href: docs/index.md
+    items:
+      - name: Устройство
+        href: docs/01_architecture.md
+      - name: Запрос к Госуслугам
+        href: docs/02_epgu-api.md
+      - name: Сессия и браузер
+        href: docs/03_session.md
+      - name: Уведомления
+        href: docs/04_alerts.md
+      - name: Правовые риски
+        href: docs/05_legal.md

@@ -4,7 +4,9 @@
 в отделения МВД и зовёт человека, когда они появляются.
 
 Здесь — быстрый старт и справочник настроек. Как оно устроено внутри, со
-схемами: [docs/](docs/README.md).
+схемами: [docs/](docs/README.md) — или те же тексты сайтом, с навигацией и
+отрисованными диаграммами:
+[nikborovets.github.io/gosuslugi-slot-watcher](https://nikborovets.github.io/gosuslugi-slot-watcher/).
 
 Отправная точка — консольный скрипт
 [Friskes/gosuslugi-watchman](https://github.com/Friskes/gosuslugi-watchman).

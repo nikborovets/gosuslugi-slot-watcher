@@ -1,0 +1,54 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', 'README.md', '.diplodoc/**', '.github/workflows/docs.yml']
+  pull_request:
+    paths: ['docs/**', 'README.md', '.diplodoc/**', '.github/workflows/docs.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Деплой на Pages не терпит параллельных запусков, но и отменять начатый
+# не стоит — дадим текущему договорить.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # @diplodoc/cli требует node >= 24
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Подготовить входную папку
+        run: bash .diplodoc/prepare.sh
+
+      # --strict превращает предупреждения YFM (в том числе о битых ссылках)
+      # в ошибки сборки.
+      - name: Собрать документацию
+        run: npx --yes @diplodoc/cli@5 build -i .yfm-build -o _site --strict
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
