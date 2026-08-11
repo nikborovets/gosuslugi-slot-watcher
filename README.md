@@ -161,8 +161,8 @@ uv run gswatch
 | `GSWATCH_MESSAGES_TO` | Номер или Apple ID для Messages.app. Пусто — выключено |
 | `GSWATCH_MESSAGES_SERVICE` | `SMS` или `iMessage`. Откатов нет — что указано, тем и шлётся |
 | `GSWATCH_TG_TOKEN` | Токен бота от @BotFather. Пусто — Telegram выключен |
-| `GSWATCH_TG_CHAT_ID` | Куда слать. Свой id можно узнать у @userinfobot |
-| `GSWATCH_VK_TOKEN`<br>`GSWATCH_VK_PEER_ID` | ВКонтакте: ключ сообщества и ваш числовой id |
+| `GSWATCH_TG_CHAT_ID` | Куда слать. Свой id можно узнать у @userinfobot (можно несколько через запятую) |
+| `GSWATCH_VK_TOKEN`<br>`GSWATCH_VK_PEER_ID` | ВКонтакте: ключ сообщества и числовой id получателя (можно несколько через запятую) |
 | `GSWATCH_PROFILE_DIR` | Где лежит профиль Chrome с сессией Госуслуг |
 
 Переменные окружения перекрывают `.env`. Настройки проверяются на старте: при

@@ -96,19 +96,23 @@ def build_sinks(cfg: "Config") -> list[Sink]:
         "Telegram",
         channels.telegram,
         cfg.telegram_enabled,
-        f"чат {mask(cfg.tg_chat_id)}" if cfg.telegram_enabled else "нет токена или чата",
+        "чат " + ", ".join(mask(c) for c in cfg.tg_chat_ids)
+        if cfg.telegram_enabled
+        else "нет токена или чата",
     ):
         sinks.append(
-            make_telegram_sink(cfg.tg_token, cfg.tg_chat_id, cfg.slots_in_message)
+            make_telegram_sink(cfg.tg_token, cfg.tg_chat_ids, cfg.slots_in_message)
         )
 
     if report(
         "ВК",
         channels.vk,
         cfg.vk_enabled,
-        f"peer {mask(cfg.vk_peer_id)}" if cfg.vk_enabled else "нет токена или peer_id",
+        "peer " + ", ".join(mask(p) for p in cfg.vk_peer_ids)
+        if cfg.vk_enabled
+        else "нет токена или peer_id",
     ):
-        sinks.append(make_vk_sink(cfg.vk_token, cfg.vk_peer_id, cfg.slots_in_message))
+        sinks.append(make_vk_sink(cfg.vk_token, cfg.vk_peer_ids, cfg.slots_in_message))
 
     if len(sinks) == 1:
         log.warning(

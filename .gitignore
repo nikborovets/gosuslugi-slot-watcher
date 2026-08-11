@@ -7,6 +7,10 @@ third_party_scripts/
 storage_state.json
 .env
 
+.cursor/
+.vscode/
+.claude/
+
 # Промежуточная и готовая сборка документации Diplodoc.
 .yfm-build/
 _site/

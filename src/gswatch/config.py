@@ -264,21 +264,24 @@ class Config:
     # "iMessage" при отправке самому себе может прийти беззвучно.
     messages_service: str = "SMS"
 
-    # Telegram. Пусто — канал просто не подключается, лог остаётся.
+    # Telegram. Пусто — канал просто не подключается, лог остаётся. Получателей
+    # можно перечислить несколько через запятую — уведомление уйдёт каждому.
     tg_token: str = ""
-    tg_chat_id: str = ""
+    tg_chat_ids: tuple[str, ...] = ()
 
-    # ВКонтакте: нужны сообщество с ботом и ваш числовой id. См. alerts/vk.py.
+    # ВКонтакте: нужны сообщество с ботом и числовые id получателей. Можно
+    # перечислить несколько через запятую — уведомление уйдёт каждому.
+    # См. alerts/vk.py.
     vk_token: str = ""
-    vk_peer_id: str = ""
+    vk_peer_ids: tuple[str, ...] = ()
 
     @property
     def telegram_enabled(self) -> bool:
-        return bool(self.tg_token and self.tg_chat_id)
+        return bool(self.tg_token and self.tg_chat_ids)
 
     @property
     def vk_enabled(self) -> bool:
-        return bool(self.vk_token and self.vk_peer_id)
+        return bool(self.vk_token and self.vk_peer_ids)
 
     @property
     def service_id(self) -> str:
@@ -480,8 +483,8 @@ def load_config(env_file: Path | None = None) -> Config:
         )
 
     tg_token = get("GSWATCH_TG_TOKEN")
-    tg_chat_id = get("GSWATCH_TG_CHAT_ID")
-    if bool(tg_token) != bool(tg_chat_id):
+    tg_chat_ids = tuple(_split_codes(get("GSWATCH_TG_CHAT_ID")))
+    if bool(tg_token) != bool(tg_chat_ids):
         # Полконфига — почти наверняка недозаполнено, а не осознанный выбор.
         # Молча слать в лог в таком случае обиднее, чем сказать прямо.
         missing = "GSWATCH_TG_TOKEN" if not tg_token else "GSWATCH_TG_CHAT_ID"
@@ -514,7 +517,7 @@ def load_config(env_file: Path | None = None) -> Config:
         messages_to=messages_to,
         messages_service=messages_service,
         tg_token=tg_token,
-        tg_chat_id=tg_chat_id,
+        tg_chat_ids=tg_chat_ids,
         vk_token=get("GSWATCH_VK_TOKEN"),
-        vk_peer_id=get("GSWATCH_VK_PEER_ID"),
+        vk_peer_ids=tuple(_split_codes(get("GSWATCH_VK_PEER_ID"))),
     )
